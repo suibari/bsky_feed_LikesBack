@@ -1,8 +1,12 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import {
   OutputSchema as RepoEvent,
   isCommit,
 } from './lexicon/types/com/atproto/sync/subscribeRepos'
 import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
+import { dot } from 'node:test/reporters';
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
@@ -10,38 +14,39 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
     const ops = await getOpsByType(evt)
 
-    // This logs the text of every post off the firehose.
-    // Just for fun :)
-    // Delete before actually using
-    for (const post of ops.posts.creates) {
-      console.log(post.record.text)
-    }
+    // for (const like of ops.likes.creates) {
+    //   console.log("Like Target: " + like.record.subject.uri)
+    // }
 
-    const postsToDelete = ops.posts.deletes.map((del) => del.uri)
-    const postsToCreate = ops.posts.creates
-      .filter((create) => {
-        // only alf-related posts
-        return create.record.text.toLowerCase().includes('alf')
-      })
-      .map((create) => {
-        // map alf-related posts to a db row
-        return {
-          uri: create.uri,
-          cid: create.cid,
-          indexedAt: new Date().toISOString(),
-        }
-      })
+    // いいねをフィルタ
+    const likesToDelete = ops.likes.deletes.map((del) => del.uri)
+    const likesToCreate = ops.likes.creates
+    // .filter((create) => {
+    //   return create.record.subject.uri.includes(process.env.FEEDGEN_PUBLISHER_DID ?? '')
+    // })
+    .map((create) => {
+      return {
+        did: create.author,
+        uri: create.record.subject.uri,
+        cid: create.record.subject.cid,
+        indexedAt: new Date().toISOString(),
+      }
+    });
 
-    if (postsToDelete.length > 0) {
+    // for (const like of likesToCreate) {
+    //   console.log(`[${like.did}] uri: ${like.uri} / indexedAt: ${like.indexedAt}`)
+    // }
+
+    if (likesToDelete.length > 0) {
       await this.db
-        .deleteFrom('post')
-        .where('uri', 'in', postsToDelete)
+        .deleteFrom('like')
+        .where('uri', 'in', likesToDelete)
         .execute()
     }
-    if (postsToCreate.length > 0) {
+    if (likesToCreate.length > 0) {
       await this.db
-        .insertInto('post')
-        .values(postsToCreate)
+        .insertInto('like')
+        .values(likesToCreate)
         .onConflict((oc) => oc.doNothing())
         .execute()
     }

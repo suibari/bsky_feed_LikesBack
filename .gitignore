@@ -132,3 +132,5 @@ dist
 # intellij
 .idea/
 *.iml
+
+package-lock.json

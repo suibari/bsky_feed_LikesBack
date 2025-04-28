@@ -1,9 +1,10 @@
 export type DatabaseSchema = {
-  post: Post
+  like: Like
   sub_state: SubState
 }
 
-export type Post = {
+export type Like = {
+  did: string
   uri: string
   cid: string
   indexedAt: string
