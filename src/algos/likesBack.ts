@@ -8,23 +8,21 @@ import { FeedViewPost } from '@atproto/api/dist/client/types/app/bsky/feed/defs'
 dotenv.config();
 const agent = new AtpAgent({ service: 'https://bsky.social' })
 agent.login({
-  identifier: process.env.FEEDGEN_HOSTNAME ?? "",
+  identifier: process.env.BSKY_IDENTIFIER ?? "",
   password: process.env.BSKY_APP_PASSWORD ?? ""
 });
 
-export const shortname = 'likerToMe'
+export const shortname = 'likesBack'
 
-export const handler = async (ctx: AppContext, params: QueryParams) => {
+export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const match = params.feed.match(/^at:\/\/([^/]+)/);
-  const did = match ? match[1] : "";
 
   // 24時間以内のlikeを取得して、likerごとに回数を集計
   const likeRows = await ctx.db
     .selectFrom('like')
     .select(['did'])
-    .where('uri', 'like', `at://${did}/%`)
+    .where('uri', 'like', `at://${requesterDid}/%`)
     .where('indexedAt', '>=', yesterday.toISOString())
     .execute()
 

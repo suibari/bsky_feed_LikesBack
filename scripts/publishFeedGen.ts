@@ -16,13 +16,16 @@ const run = async () => {
       {
         type: 'input',
         name: 'handle',
+        default: process.env.BSKY_IDENTIFIER,
         message: 'Enter your Bluesky handle:',
         required: true,
       },
       {
-        type: 'password',
+        type: 'input',
         name: 'password',
+        default: process.env.BSKY_APP_PASSWORD,
         message: 'Enter your Bluesky password (preferably an App Password):',
+        required: true,
       },
       {
         type: 'input',
