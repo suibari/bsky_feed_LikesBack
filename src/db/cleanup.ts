@@ -1,0 +1,20 @@
+import { Kysely } from 'kysely'
+import { DatabaseSchema } from './schema'
+
+export function startCleanupTask(db: Kysely<DatabaseSchema>) {
+  const intervalMs = 30 * 60 * 1000 // 30分ごと
+
+  setInterval(async () => {
+    const now = new Date()
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+    console.log(`[Cleanup] Deleting likes older than ${yesterday.toISOString()}`)
+
+    await db
+      .deleteFrom('like')
+      .where('indexedAt', '<', yesterday.toISOString())
+      .execute()
+
+    console.log(`[Cleanup] Done.`)
+  }, intervalMs)
+}
