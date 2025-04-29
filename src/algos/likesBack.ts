@@ -32,31 +32,30 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
     likeCounts[row.did] = (likeCounts[row.did] || 0) + 1
   }
 
-  const posts: FeedViewPost[] = []
-
   // likerごとに、その回数分だけ最新ポストを取得
-  for (const [liker, count] of Object.entries(likeCounts)) {
-    try {
-      const response = await agent.getAuthorFeed({
-        actor: liker,
-        limit: count, // いいね数に応じた件数だけ取得
-        filter: "posts_no_replies",
-      })
-
-      const userFeed = response.data.feed;
-
-      posts.push(...userFeed)
-    } catch (err) {
-      console.error(`Failed to fetch feed for liker ${liker}:`, err)
-      continue
-    }
+  let posts: FeedViewPost[] = [];
+  try {
+    const responses = await Promise.all(
+      Object.entries(likeCounts).map(([liker, count]) =>
+        agent.getAuthorFeed({
+          actor: liker,
+          limit: count,
+          filter: "posts_no_replies",
+        }).then(res => ({ liker, feed: res.data.feed }))
+          .catch(err => {
+            console.error(`Failed to fetch feed for liker ${liker}:`, err)
+            return { liker, feed: [] }; // エラーでも空配列で返す
+          })
+      )
+    );
+  
+    posts = responses.flatMap(res => res.feed);
+  } catch (err) {
+    console.error("Unexpected error in feed fetching:", err);
   }
 
   // --- 🧠 ここから cursor 処理
-  let feed: FeedViewPost[] = posts
-
-  // ソート条件
-  feed = feed.sort((a, b) => {
+  let feed = posts.sort((a, b) => {
     const dateA = new Date(a.post.indexedAt).getTime()
     const dateB = new Date(b.post.indexedAt).getTime()
     return dateB - dateA // 新しい順
@@ -82,6 +81,7 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   }
 
   // 返却
+  console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}`)
   return {
     cursor,
     feed: limitedFeed.map((item) => ({
