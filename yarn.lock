@@ -232,10 +232,10 @@
     "@atproto/lexicon" "^0.4.5"
     zod "^3.23.8"
 
-"@cbor-extract/cbor-extract-linux-x64@2.2.0":
+"@cbor-extract/cbor-extract-linux-arm64@2.2.0":
   version "2.2.0"
-  resolved "https://registry.npmjs.org/@cbor-extract/cbor-extract-linux-x64/-/cbor-extract-linux-x64-2.2.0.tgz"
-  integrity sha512-cWLAWtT3kNLHSvP4RKDzSTX9o0wvQEEAj4SKvhWuOVZxiDAeQazr9A+PSiRILK1VYMLeDml89ohxCnUNQNQNCw==
+  resolved "https://registry.npmjs.org/@cbor-extract/cbor-extract-linux-arm64/-/cbor-extract-linux-arm64-2.2.0.tgz"
+  integrity sha512-rQvhNmDuhjTVXSPFLolmQ47/ydGOFXtbR7+wgkSY0bdOxCFept1hvg59uiLPT2fVDuJFuEy16EImo5tE2x3RsQ==
 
 "@cspotcode/source-map-support@^0.8.0":
   version "0.8.1"

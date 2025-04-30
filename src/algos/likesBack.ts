@@ -50,9 +50,12 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
           actor: liker,
           limit: count,
           filter: "posts_no_replies",
-        }).then(res => ({ liker, feed: res.data.feed }))
+        }).then(res => ({
+          liker,
+          feed: res.data.feed.filter(item => !item.reason) // リポスト除外
+        }))
           .catch(err => {
-            console.error(`Failed to fetch feed for liker ${liker}:`, err)
+            console.error(`Failed to fetch feed for liker ${liker}:`, err);
             return { liker, feed: [] }; // エラーでも空配列で返す
           })
       )
