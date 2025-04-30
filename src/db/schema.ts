@@ -6,7 +6,7 @@ export type DatabaseSchema = {
 export type Like = {
   did: string
   uri: string
-  cid: string
+  likedUri: string
   indexedAt: string
 }
 

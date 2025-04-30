@@ -14,9 +14,11 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
     const ops = await getOpsByType(evt)
 
-    // for (const like of ops.likes.creates) {
-    //   console.log("Like Target: " + like.record.subject.uri)
-    // }
+    for (const like of ops.likes.creates) {
+      if (like.record.subject.uri.includes(process.env.FEEDGEN_PUBLISHER_DID ?? '')) {
+        console.log(`${like.author} likes to ${like.record.subject.uri}`);
+      }
+    }
 
     // いいねをフィルタ
     const likesToDelete = ops.likes.deletes.map((del) => del.uri)
@@ -27,8 +29,8 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     .map((create) => {
       return {
         did: create.author,
-        uri: create.record.subject.uri,
-        cid: create.record.subject.cid,
+        uri: create.uri,
+        likedUri: create.record.subject.uri,
         indexedAt: new Date().toISOString(),
       }
     });

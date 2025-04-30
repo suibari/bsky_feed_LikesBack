@@ -1,20 +1,12 @@
-import dotenv from 'dotenv';
 import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
 import { AppContext } from '../config'
-import { AtpAgent } from '@atproto/api'
 import { FeedViewPost } from '@atproto/api/dist/client/types/app/bsky/feed/defs';
-
-// 起動時にログイン
-dotenv.config();
-const agent = new AtpAgent({ service: 'https://bsky.social' })
-agent.login({
-  identifier: process.env.BSKY_IDENTIFIER ?? "",
-  password: process.env.BSKY_APP_PASSWORD ?? ""
-});
+import { agent } from '../login';
 
 export const shortname = 'likesBack'
 
 export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
+  console.log("handler called")
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
@@ -22,7 +14,7 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   const likeRows = await ctx.db
     .selectFrom('like')
     .select(['did'])
-    .where('uri', 'like', `at://${requesterDid}/%`)
+    .where('likedUri', 'like', `at://${requesterDid}/%`)
     .where('indexedAt', '>=', yesterday.toISOString())
     .execute()
 
@@ -30,6 +22,9 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   const likeCounts: Record<string, number> = {}
   for (const row of likeRows) {
     likeCounts[row.did] = (likeCounts[row.did] || 0) + 1
+  }
+  for (const [liker, count] of Object.entries(likeCounts)) {
+    console.log(`Liker: ${liker}, Count: ${count}`);
   }
 
   // likerごとに、その回数分だけ最新ポストを取得

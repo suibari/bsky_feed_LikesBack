@@ -14,7 +14,7 @@ migrations['001'] = {
       .createTable('like')
       .addColumn('did', 'varchar', (col) => col.notNull())
       .addColumn('uri', 'varchar', (col) => col.primaryKey())
-      .addColumn('cid', 'varchar', (col) => col.notNull())
+      .addColumn('likedUri', 'varchar', (col) => col.notNull())
       .addColumn('indexedAt', 'varchar', (col) => col.notNull())
       .execute()
     await db.schema

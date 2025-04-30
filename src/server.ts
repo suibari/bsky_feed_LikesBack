@@ -10,6 +10,7 @@ import { FirehoseSubscription } from './subscription'
 import { AppContext, Config } from './config'
 import wellKnown from './well-known'
 import { startCleanupTask } from './db/cleanup'
+import { initAgent } from './login'
 
 export class FeedGenerator {
   public app: express.Application
@@ -64,7 +65,12 @@ export class FeedGenerator {
 
   async start(): Promise<http.Server> {
     await migrateToLatest(this.db)
+
+    // DB定期クリーン処理
     startCleanupTask(this.db)
+    // BSKYログイン
+    initAgent();
+
     this.firehose.run(this.cfg.subscriptionReconnectDelay)
     this.server = this.app.listen(this.cfg.port, this.cfg.listenhost)
     await events.once(this.server, 'listening')
