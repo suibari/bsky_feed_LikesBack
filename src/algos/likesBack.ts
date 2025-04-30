@@ -9,6 +9,21 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+  // Subscriber登録
+  const result = await ctx.db
+    .insertInto('subscriber')
+    .values({
+      did: requesterDid,
+      indexedAt: now.toISOString(),
+    })
+    .onConflict((oc) => oc.doNothing())
+    .returning(['did']) // ← 挿入に成功したら返ってくる
+    .execute()
+
+  if (result.length > 0) {
+    console.log(`[${requesterDid}] subscriber registered.`);
+  }
+
   // 24時間以内のlikeを取得して、likerごとに回数を集計
   const likeRows = await ctx.db
     .selectFrom('like')

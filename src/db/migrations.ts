@@ -12,9 +12,14 @@ migrations['001'] = {
   async up(db: Kysely<unknown>) {
     await db.schema
       .createTable('like')
-      .addColumn('did', 'varchar', (col) => col.notNull())
       .addColumn('uri', 'varchar', (col) => col.primaryKey())
+      .addColumn('did', 'varchar', (col) => col.notNull())
       .addColumn('likedDid', 'varchar', (col) => col.notNull())
+      .addColumn('indexedAt', 'varchar', (col) => col.notNull())
+      .execute()
+    await db.schema
+      .createTable('subscriber')
+      .addColumn('did', 'varchar', (col) => col.primaryKey())
       .addColumn('indexedAt', 'varchar', (col) => col.notNull())
       .execute()
     await db.schema

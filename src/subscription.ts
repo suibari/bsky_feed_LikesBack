@@ -7,6 +7,7 @@ import {
 } from './lexicon/types/com/atproto/sync/subscribeRepos'
 import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
 import { dot } from 'node:test/reporters';
+import { isSubscribedDid } from './db/subscriberCache';
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
@@ -16,28 +17,23 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
     for (const like of ops.likes.creates) {
       if (like.record.subject.uri.includes(process.env.FEEDGEN_PUBLISHER_DID ?? '')) {
-        console.log(`${like.author} likes to ${like.record.subject.uri}`);
+        console.log(`[${like.author}] likes to ${like.record.subject.uri}`);
       }
     }
 
-    // いいねをフィルタ
+    // いいね登録削除: 登録はSubscriberに限定
     const likesToDelete = ops.likes.deletes.map((del) => del.uri)
     const likesToCreate = ops.likes.creates
-    // .filter((create) => {
-    //   return create.record.subject.uri.includes(process.env.FEEDGEN_PUBLISHER_DID ?? '')
-    // })
-    .map((create) => {
-      return {
-        did: create.author,
-        uri: create.uri,
-        likedDid: create.record.subject.uri.match(/at:\/\/([^\/]+)\/(.+)/)?.[1] ?? '',
-        indexedAt: new Date().toISOString(),
-      }
-    });
-
-    // for (const like of likesToCreate) {
-    //   console.log(`[${like.did}] uri: ${like.uri} / indexedAt: ${like.indexedAt}`)
-    // }
+      .map((create) => {
+        const likedDid = create.record.subject.uri.match(/at:\/\/([^\/]+)\/(.+)/)?.[1] ?? ''
+        return {
+          did: create.author,
+          uri: create.uri,
+          likedDid,
+          indexedAt: new Date().toISOString(),
+        }
+      })
+      .filter((like) => isSubscribedDid(like.likedDid));
 
     if (likesToDelete.length > 0) {
       await this.db

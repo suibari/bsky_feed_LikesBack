@@ -11,6 +11,7 @@ import { AppContext, Config } from './config'
 import wellKnown from './well-known'
 import { startCleanupTask } from './db/cleanup'
 import { initAgent } from './login'
+import { initSubscriberCache } from './db/subscriberCache'
 
 export class FeedGenerator {
   public app: express.Application
@@ -66,8 +67,9 @@ export class FeedGenerator {
   async start(): Promise<http.Server> {
     await migrateToLatest(this.db)
 
-    // DB定期クリーン処理
+    // 定期処理をしかける
     startCleanupTask(this.db)
+    initSubscriberCache(this.db)
     // BSKYログイン
     await initAgent();
 
