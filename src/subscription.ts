@@ -30,7 +30,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
       return {
         did: create.author,
         uri: create.uri,
-        likedUri: create.record.subject.uri,
+        likedDid: create.record.subject.uri.match(/at:\/\/([^\/]+)\/(.+)/)?.[1] ?? '',
         indexedAt: new Date().toISOString(),
       }
     });

@@ -6,7 +6,6 @@ import { agent } from '../login';
 export const shortname = 'likesBack'
 
 export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
-  console.log("handler called")
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
@@ -14,7 +13,7 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   const likeRows = await ctx.db
     .selectFrom('like')
     .select(['did'])
-    .where('likedUri', 'like', `at://${requesterDid}/%`)
+    .where('likedDid', '=', requesterDid)
     .where('indexedAt', '>=', yesterday.toISOString())
     .execute()
 
@@ -23,9 +22,9 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   for (const row of likeRows) {
     likeCounts[row.did] = (likeCounts[row.did] || 0) + 1
   }
-  for (const [liker, count] of Object.entries(likeCounts)) {
-    console.log(`Liker: ${liker}, Count: ${count}`);
-  }
+  // for (const [liker, count] of Object.entries(likeCounts)) {
+  //   console.log(`Liker: ${liker}, Count: ${count}`);
+  // }
 
   // likerごとに、その回数分だけ最新ポストを取得
   let posts: FeedViewPost[] = [];

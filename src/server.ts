@@ -69,7 +69,7 @@ export class FeedGenerator {
     // DB定期クリーン処理
     startCleanupTask(this.db)
     // BSKYログイン
-    initAgent();
+    await initAgent();
 
     this.firehose.run(this.cfg.subscriptionReconnectDelay)
     this.server = this.app.listen(this.cfg.port, this.cfg.listenhost)

@@ -10,4 +10,5 @@ export const initAgent = async () => {
     identifier: process.env.BSKY_IDENTIFIER ?? "",
     password: process.env.BSKY_APP_PASSWORD ?? ""
   });
+  console.log("Bluesky login success");
 }
