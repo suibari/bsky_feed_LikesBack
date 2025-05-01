@@ -2,6 +2,7 @@ import { isSubscribedDid } from './db/subscriberCache.js'
 import { Database } from './db/index.js'
 import { CommitCreateEvent, CommitDeleteEvent, Jetstream } from '@skyware/jetstream'
 import Websocket from 'ws'
+import { Record } from './lexicon/types/app/bsky/feed/like.js'
 
 export class JetstreamSubscription {
   private client: InstanceType<typeof Jetstream>
@@ -28,13 +29,13 @@ export class JetstreamSubscription {
   }
 
   private async handleCreateEvent(evt: CommitCreateEvent<any>) {
-    const record = evt.commit.record
-    const subjectUri = record.subject?.uri
+    const record = evt.commit.record as Record
+    const subjectUri = record.subject.uri
+    const likedDid = subjectUri.match(/^at:\/\/([^\/]+)/)?.[1]
 
-    if (!subjectUri || !isSubscribedDid(subjectUri)) return
+    if (!likedDid || !isSubscribedDid(likedDid)) return
 
     const fullUri = `at://${evt.did}/app.bsky.feed.like/${evt.commit.rkey}`
-    const likedDid = subjectUri.match(/^at:\/\/([^\/]+)\//)?.[1] ?? ''
 
     const like = {
       did: evt.did,
