@@ -1,5 +1,5 @@
 import { Kysely } from 'kysely'
-import { DatabaseSchema } from './schema'
+import { DatabaseSchema } from './schema.js'
 
 export function startCleanupTask(db: Kysely<DatabaseSchema>) {
   const intervalMs = 30 * 60 * 1000 // 30分ごと

@@ -1,7 +1,7 @@
-import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
-import { AppContext } from '../config'
+import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton.js'
+import { AppContext } from '../config.js'
 import { FeedViewPost } from '@atproto/api/dist/client/types/app/bsky/feed/defs';
-import { agent } from '../login';
+import { agent } from '../login.js';
 
 export const shortname = 'likesBack'
 

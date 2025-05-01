@@ -1,5 +1,5 @@
 import { Kysely } from "kysely"
-import { DatabaseSchema } from "./schema"
+import { DatabaseSchema } from "./schema.js"
 
 let subscriberDidSet: Set<string> = new Set()
 

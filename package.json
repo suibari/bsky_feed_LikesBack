@@ -1,5 +1,6 @@
 {
   "name": "feed-generator",
+  "type": "module",
   "version": "1.0.0",
   "description": "atproto feed generator starter kit",
   "main": "index.js",
@@ -9,7 +10,7 @@
   "scripts": {
     "publishFeed": "ts-node scripts/publishFeedGen.ts",
     "unpublishFeed": "ts-node scripts/unpublishFeedGen.ts",
-    "start": "ts-node src/index.ts",
+    "start": "node --import \"data:text/javascript,import { register } from 'node:module'; import { pathToFileURL } from 'node:url'; register('ts-node/esm', pathToFileURL('./'));\" ./src/index.ts",
     "build": "tsc"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@atproto/repo": "^0.3.2",
     "@atproto/syntax": "^0.1.2",
     "@atproto/xrpc-server": "^0.7.9",
+    "@skyware/jetstream": "^0.2.2",
     "better-sqlite3": "^11.3.0",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",

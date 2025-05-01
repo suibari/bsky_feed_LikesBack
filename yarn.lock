@@ -2,6 +2,16 @@
 # yarn lockfile v1
 
 
+"@atcute/bluesky@^1.0.6":
+  version "1.0.15"
+  resolved "https://registry.npmjs.org/@atcute/bluesky/-/bluesky-1.0.15.tgz"
+  integrity sha512-+EFiybmKQ97aBAgtaD+cKRJER5AMn3cZMkEwEg/pDdWyzxYJ9m1UgemmLdTgI8VrxPufKqdXS2nl7uO7TY6BPA==
+
+"@atcute/client@^1.0.0 || ^2.0.0":
+  version "2.0.9"
+  resolved "https://registry.npmjs.org/@atcute/client/-/client-2.0.9.tgz"
+  integrity sha512-QNDm9gMP6x9LY77ArwY+urQOBtQW74/onEAz42c40JxRm6Rl9K9cU4ROvNKJ+5cpVmEm1sthEWVRmDr5CSZENA==
+
 "@atproto/api@^0.13.28":
   version "0.13.28"
   resolved "https://registry.npmjs.org/@atproto/api/-/api-0.13.28.tgz"
@@ -232,10 +242,10 @@
     "@atproto/lexicon" "^0.4.5"
     zod "^3.23.8"
 
-"@cbor-extract/cbor-extract-linux-arm64@2.2.0":
+"@cbor-extract/cbor-extract-linux-x64@2.2.0":
   version "2.2.0"
-  resolved "https://registry.npmjs.org/@cbor-extract/cbor-extract-linux-arm64/-/cbor-extract-linux-arm64-2.2.0.tgz"
-  integrity sha512-rQvhNmDuhjTVXSPFLolmQ47/ydGOFXtbR7+wgkSY0bdOxCFept1hvg59uiLPT2fVDuJFuEy16EImo5tE2x3RsQ==
+  resolved "https://registry.npmjs.org/@cbor-extract/cbor-extract-linux-x64/-/cbor-extract-linux-x64-2.2.0.tgz"
+  integrity sha512-cWLAWtT3kNLHSvP4RKDzSTX9o0wvQEEAj4SKvhWuOVZxiDAeQazr9A+PSiRILK1VYMLeDml89ohxCnUNQNQNCw==
 
 "@cspotcode/source-map-support@^0.8.0":
   version "0.8.1"
@@ -423,6 +433,14 @@
   version "1.7.1"
   resolved "https://registry.npmjs.org/@noble/hashes/-/hashes-1.7.1.tgz"
   integrity sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ==
+
+"@skyware/jetstream@^0.2.2":
+  version "0.2.2"
+  resolved "https://registry.npmjs.org/@skyware/jetstream/-/jetstream-0.2.2.tgz"
+  integrity sha512-d1MtWPTIFEciSzV8OClXZCJoz0DJ7aupt4EZSwpGAASYG0ZIPmZTt7RVJkoFzQyqRPHAMD7CvEwu0ut3MHX1og==
+  dependencies:
+    "@atcute/bluesky" "^1.0.6"
+    partysocket "^1.0.2"
 
 "@tsconfig/node10@^1.0.7":
   version "1.0.11"
@@ -882,6 +900,11 @@ etag@~1.8.1:
   resolved "https://registry.npmjs.org/etag/-/etag-1.8.1.tgz"
   integrity sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==
 
+event-target-polyfill@^0.0.4:
+  version "0.0.4"
+  resolved "https://registry.npmjs.org/event-target-polyfill/-/event-target-polyfill-0.0.4.tgz"
+  integrity sha512-Gs6RLjzlLRdT8X9ZipJdIZI/Y6/HhRLyq9RdDlCsnpxr/+Nn6bU2EFGuC94GjxqhM+Nmij2Vcq98yoHrU8uNFQ==
+
 event-target-shim@^5.0.0:
   version "5.0.1"
   resolved "https://registry.npmjs.org/event-target-shim/-/event-target-shim-5.0.1.tgz"
@@ -1247,6 +1270,13 @@ parseurl@~1.3.3:
   version "1.3.3"
   resolved "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz"
   integrity sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==
+
+partysocket@^1.0.2:
+  version "1.1.3"
+  resolved "https://registry.npmjs.org/partysocket/-/partysocket-1.1.3.tgz"
+  integrity sha512-87Jd/nqPoWnVfzHE6Z12WLWTJ+TAgxs0b7i2S163HfQSrVDUK5tW/FC64T5N8L5ss+gqF+EV0BwjZMWggMY3UA==
+  dependencies:
+    event-target-polyfill "^0.0.4"
 
 path-to-regexp@0.1.12:
   version "0.1.12"

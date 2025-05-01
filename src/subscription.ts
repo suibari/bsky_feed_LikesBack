@@ -1,52 +1,61 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import { isSubscribedDid } from './db/subscriberCache.js'
+import { Database } from './db/index.js'
+import { CommitCreateEvent, CommitDeleteEvent, Jetstream } from '@skyware/jetstream'
+import Websocket from 'ws'
 
-import {
-  OutputSchema as RepoEvent,
-  isCommit,
-} from './lexicon/types/com/atproto/sync/subscribeRepos'
-import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
-import { dot } from 'node:test/reporters';
-import { isSubscribedDid } from './db/subscriberCache';
+export class JetstreamSubscription {
+  private client: InstanceType<typeof Jetstream>
+  private db: Database
 
-export class FirehoseSubscription extends FirehoseSubscriptionBase {
-  async handleEvent(evt: RepoEvent) {
-    if (!isCommit(evt)) return
+  constructor(db: Database) {
+    this.db = db
+    this.client = new Jetstream({
+      wantedCollections: ['app.bsky.feed.like'],
+      ws: Websocket,
+    });
+  }
 
-    const ops = await getOpsByType(evt)
+  async run() {
+    this.client.onCreate("app.bsky.feed.like", (evt: CommitCreateEvent<any>) => {
+      this.handleCreateEvent(evt)
+    });
 
-    for (const like of ops.likes.creates) {
-      if (like.record.subject.uri.includes(process.env.FEEDGEN_PUBLISHER_DID ?? '')) {
-        console.log(`[${like.author}] likes to ${like.record.subject.uri}`);
-      }
+    this.client.onDelete("app.bsky.feed.like", (evt: CommitDeleteEvent<any>) => {
+      this.handleDeleteEvent(evt)
+    });
+
+    this.client.start();
+  }
+
+  private async handleCreateEvent(evt: CommitCreateEvent<any>) {
+    const record = evt.commit.record
+    const subjectUri = record.subject?.uri
+
+    if (!subjectUri || !isSubscribedDid(subjectUri)) return
+
+    const fullUri = `at://${evt.did}/app.bsky.feed.like/${evt.commit.rkey}`
+    const likedDid = subjectUri.match(/^at:\/\/([^\/]+)\//)?.[1] ?? ''
+
+    const like = {
+      did: evt.did,
+      uri: fullUri,
+      likedDid,
+      indexedAt: new Date().toISOString(),
     }
 
-    // いいね登録削除: 登録はSubscriberに限定
-    const likesToDelete = ops.likes.deletes.map((del) => del.uri)
-    const likesToCreate = ops.likes.creates
-      .map((create) => {
-        const likedDid = create.record.subject.uri.match(/at:\/\/([^\/]+)\/(.+)/)?.[1] ?? ''
-        return {
-          did: create.author,
-          uri: create.uri,
-          likedDid,
-          indexedAt: new Date().toISOString(),
-        }
-      })
-      .filter((like) => isSubscribedDid(like.likedDid));
+    await this.db
+      .insertInto('like')
+      .values(like)
+      .onConflict((oc) => oc.doNothing())
+      .execute()
+  }
 
-    if (likesToDelete.length > 0) {
-      await this.db
-        .deleteFrom('like')
-        .where('uri', 'in', likesToDelete)
-        .execute()
-    }
-    if (likesToCreate.length > 0) {
-      await this.db
-        .insertInto('like')
-        .values(likesToCreate)
-        .onConflict((oc) => oc.doNothing())
-        .execute()
-    }
+  private async handleDeleteEvent(evt: CommitDeleteEvent<any>) {
+    const fullUri = `at://${evt.did}/app.bsky.feed.like/${evt.commit.rkey}`
+
+    await this.db
+      .deleteFrom('like')
+      .where('uri', '=', fullUri)
+      .execute()
   }
 }
