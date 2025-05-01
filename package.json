@@ -8,8 +8,8 @@
   "author": "dholms <dtholmgren@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "publishFeed": "ts-node scripts/publishFeedGen.ts",
-    "unpublishFeed": "ts-node scripts/unpublishFeedGen.ts",
+    "publishFeed": "node --loader ts-node/esm scripts/publishFeedGen.ts",
+    "unpublishFeed": "node --loader ts-node/esm scripts/unpublishFeedGen.ts",
     "start": "node --import \"data:text/javascript,import { register } from 'node:module'; import { pathToFileURL } from 'node:url'; register('ts-node/esm', pathToFileURL('./'));\" ./src/index.ts",
     "build": "tsc"
   },
