@@ -39,7 +39,6 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   }
   const likeRows = await likeQuery.execute();
 
-  console.log(likeRows.length)
   // cursor生成
   let nextCursor: string | undefined = undefined;
   if (likeRows.length > PAGE_SIZE) {
