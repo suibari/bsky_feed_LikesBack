@@ -6,6 +6,7 @@ import { agent } from '../login.js';
 export const shortname = 'likesBack'
 
 export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
+  const PAGE_SIZE = 100;
   const now = new Date();
 
   // Subscriber登録
@@ -24,13 +25,28 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   }
 
   // 1. 24時間以内のlikeを取得（indexedAt昇順）
-  const likeRows = await ctx.db
+  let likeQuery = ctx.db
     .selectFrom('like')
     .select(['did', 'indexedAt'])
     .where('likedDid', '=', requesterDid)
-
     .orderBy('indexedAt', 'desc')
-    .execute()
+    .limit(PAGE_SIZE + 1) // 1件多く取得して、次があるか確認
+
+  // cursorがある場合、参照位置を指定
+  if (params.cursor) {
+    const decodedCursor = Buffer.from(params.cursor, 'base64').toString();
+    likeQuery = likeQuery.where('indexedAt', '<', decodedCursor);
+  }
+  const likeRows = await likeQuery.execute();
+
+  console.log(likeRows.length)
+  // cursor生成
+  let nextCursor: string | undefined = undefined;
+  if (likeRows.length > PAGE_SIZE) {
+    const next = likeRows[PAGE_SIZE].indexedAt;
+    nextCursor = Buffer.from(next).toString('base64');
+    likeRows.splice(PAGE_SIZE); // 100件に絞る
+  }
 
   // 2. likerごとのlike数を集計
   const likeCounts: Record<string, number> = {}
@@ -75,11 +91,11 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   }
 
   // 返却
-  console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}`)
+  console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}, cursor: ${nextCursor}`);
   return {
-    cursor: undefined, // cursor非対応
-    feed: feed.slice(0, 100).map((item) => ({
+    cursor: nextCursor,
+    feed: feed.map((item) => ({
       post: item.post.uri,
     })),
-  }
+  };
 }
