@@ -7,7 +7,6 @@ export const shortname = 'likesBack'
 
 export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
   const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   // Subscriber登録
   const result = await ctx.db
@@ -24,79 +23,62 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
     console.log(`[${requesterDid}] subscriber registered.`);
   }
 
-  // 24時間以内のlikeを取得して、likerごとに回数を集計
+  // 1. 24時間以内のlikeを取得（indexedAt昇順）
   const likeRows = await ctx.db
     .selectFrom('like')
-    .select(['did'])
+    .select(['did', 'indexedAt'])
     .where('likedDid', '=', requesterDid)
-    .where('indexedAt', '>=', yesterday.toISOString())
+
+    .orderBy('indexedAt', 'desc')
     .execute()
 
-  // 集計: likerごとのlike回数
+  // 2. likerごとのlike数を集計
   const likeCounts: Record<string, number> = {}
   for (const row of likeRows) {
     likeCounts[row.did] = (likeCounts[row.did] || 0) + 1
   }
-  // for (const [liker, count] of Object.entries(likeCounts)) {
-  //   console.log(`Liker: ${liker}, Count: ${count}`);
-  // }
 
-  // likerごとに、その回数分だけ最新ポストを取得
-  let posts: FeedViewPost[] = [];
-  try {
-    const responses = await Promise.all(
-      Object.entries(likeCounts).map(([liker, count]) =>
-        agent.getAuthorFeed({
-          actor: liker,
-          limit: count,
-          filter: "posts_no_replies",
-        }).then(res => ({
-          liker,
-          feed: res.data.feed.filter(item => !item.reason) // リポスト除外
-        }))
-          .catch(err => {
-            console.error(`Failed to fetch feed for liker ${liker}:`, err);
-            return { liker, feed: [] }; // エラーでも空配列で返す
-          })
-      )
-    );
-  
-    posts = responses.flatMap(res => res.feed);
-  } catch (err) {
-    console.error("Unexpected error in feed fetching:", err);
+  // 3. まとめてポスト取得（Promise.all）
+  const responses = await Promise.all(
+    Object.entries(likeCounts).map(([liker, count]) =>
+      agent.getAuthorFeed({
+        actor: liker,
+        limit: count,
+        filter: "posts_no_replies",
+      }).then(res => ({
+        liker,
+        feed: res.data.feed.filter(item => !item.reason) // リポスト除外
+      }))
+      .catch(err => {
+        console.error(`Failed to fetch feed for liker ${liker}:`, err)
+        return { liker, feed: [] }
+      })
+    )
+  )
+
+  // 4. Mapで feed を保持（各likerのポストリスト）
+  const feedMap = new Map<string, FeedViewPost[]>()
+  for (const { liker, feed } of responses) {
+    feedMap.set(liker, feed)
   }
 
-  // --- 🧠 ここから cursor 処理
-  let feed = posts.sort((a, b) => {
-    const dateA = new Date(a.post.indexedAt).getTime()
-    const dateB = new Date(b.post.indexedAt).getTime()
-    return dateB - dateA // 新しい順
-  })
-
-  if (params.cursor) {
-    // カーソル（時刻）より前のポストだけに絞る
-    const cursorTime = parseInt(params.cursor, 10)
-    feed = feed.filter((item) => {
-      const itemTime = new Date(item.post.indexedAt).getTime()
-      return itemTime < cursorTime
-    })
-  }
-
-  // 出す件数制限
-  const limitedFeed = feed.slice(0, params.limit)
-
-  // 次のカーソルを計算
-  let cursor: string | undefined
-  if (limitedFeed.length > 0) {
-    const lastTime = new Date(limitedFeed[limitedFeed.length - 1].post.indexedAt).getTime()
-    cursor = lastTime.toString()
+  // 5. like順にポストを組み立て
+  const feed: FeedViewPost[] = []
+  for (const row of likeRows) {
+    const feedRow = feedMap.get(row.did)
+    if (feedRow && feedRow.length > 0) {
+      const post = feedRow.shift() // 最初の1件を消費
+      if (post) {
+        feed.push(post)
+      }
+    }
   }
 
   // 返却
   console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}`)
   return {
-    cursor,
-    feed: limitedFeed.map((item) => ({
+    cursor: undefined, // cursor非対応
+    feed: feed.slice(0, 100).map((item) => ({
       post: item.post.uri,
     })),
   }
