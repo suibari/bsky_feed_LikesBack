@@ -1,12 +1,15 @@
 import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton.js'
 import { AppContext } from '../config.js'
 import { FeedViewPost } from '@atproto/api/dist/client/types/app/bsky/feed/defs';
+import pLimit from 'p-limit';
 import { agent } from '../login.js';
 
 export const shortname = 'likesBack'
 
 export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
   const PAGE_SIZE = 100;
+  const limit = pLimit(10); // 同時fetch制限
+
   const now = new Date();
 
   // Subscriber登録
@@ -56,18 +59,20 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   // 3. まとめてポスト取得（Promise.all）
   const responses = await Promise.all(
     Object.entries(likeCounts).map(([liker, count]) =>
-      agent.getAuthorFeed({
-        actor: liker,
-        limit: count,
-        filter: "posts_no_replies",
-      }).then(res => ({
-        liker,
-        feed: res.data.feed.filter(item => !item.reason) // リポスト除外
-      }))
-      .catch(err => {
-        console.error(`Failed to fetch feed for liker ${liker}:`, err)
-        return { liker, feed: [] }
-      })
+      limit(() => 
+        agent.getAuthorFeed({
+          actor: liker,
+          limit: count,
+          filter: "posts_no_replies",
+        }).then(res => ({
+          liker,
+          feed: res.data.feed.filter(item => !item.reason) // リポスト除外
+        }))
+        .catch(err => {
+          console.error(`Failed to fetch feed for liker ${liker}:`, err)
+          return { liker, feed: [] }
+        })
+      )
     )
   )
 
