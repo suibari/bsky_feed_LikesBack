@@ -62,11 +62,13 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
       limit(() => 
         agent.getAuthorFeed({
           actor: liker,
-          limit: count,
+          limit: Math.min(count + 10, 100), // 先頭リポストの対策で多めに取得しておく
           filter: "posts_no_replies",
         }).then(res => ({
           liker,
-          feed: res.data.feed.filter(item => !item.reason) // リポスト除外
+          feed: res.data.feed
+            .filter(item => !item.reason) // リポスト除外
+            .slice(0, count)
         }))
         .catch(err => {
           console.error(`Failed to fetch feed for liker ${liker}:`, err)
