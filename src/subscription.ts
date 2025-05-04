@@ -11,9 +11,10 @@ export class JetstreamSubscription {
   constructor(db: Database) {
     this.db = db
     this.client = new Jetstream({
-      wantedCollections: ['app.bsky.feed.like'],
       ws: Websocket,
+      wantedCollections: ['app.bsky.feed.like'],
     });
+    this.client.url = new URL(process.env.URL_JETSTREAM || '');
   }
 
   async run() {
