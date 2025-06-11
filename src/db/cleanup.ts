@@ -6,7 +6,7 @@ export function startCleanupTask(db: Kysely<DatabaseSchema>) {
 
   setInterval(async () => {
     const now = new Date()
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24時間前より前のいいねを削除
+    const yesterday = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000) // 3日前より前のいいねを削除
 
     console.log(`[Cleanup] Deleting likes older than ${yesterday.toISOString()}`)
 
