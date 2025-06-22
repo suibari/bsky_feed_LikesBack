@@ -20,49 +20,34 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
       indexedAt: now.toISOString(),
     })
     .onConflict((oc) => oc.doNothing())
-    .returning(['did'])
+    .returning(['did']) // ← 挿入に成功したら返ってくる
     .execute()
 
   if (result.length > 0) {
     console.log(`[${requesterDid}] subscriber registered.`);
   }
 
-  // 1. いいねを取得（indexedAt降順）
+  // 1. 24時間以内のlikeを取得（indexedAt昇順）
   let likeQuery = ctx.db
     .selectFrom('like')
-    .select(['did', 'indexedAt', 'uri'])
+    .select(['did', 'indexedAt'])
     .where('likedDid', '=', requesterDid)
     .orderBy('indexedAt', 'desc')
-    .orderBy('uri', 'desc') // 同じタイムスタンプの場合の順序を決定的にする
-    .limit(PAGE_SIZE + 1)
+    .limit(PAGE_SIZE + 1) // 1件多く取得して、次があるか確認
 
-  // cursorがある場合の処理
+  // cursorがある場合、参照位置を指定
   if (params.cursor) {
-    try {
-      const decodedCursor = Buffer.from(params.cursor, 'base64').toString();
-      const [indexedAt, uri] = decodedCursor.split('|');
-      likeQuery = likeQuery.where(({eb, or}) => 
-        or([
-          eb('indexedAt', '<', indexedAt),
-          eb.and([
-            eb('indexedAt', '=', indexedAt),
-            eb('uri', '<', uri)
-          ])
-        ])
-      );
-    } catch (err) {
-      console.error('Invalid cursor:', err);
-    }
+    const decodedCursor = Buffer.from(params.cursor, 'base64').toString();
+    likeQuery = likeQuery.where('indexedAt', '<', decodedCursor);
   }
-  
   const likeRows = await likeQuery.execute();
 
   // cursor生成
   let nextCursor: string | undefined = undefined;
   if (likeRows.length > PAGE_SIZE) {
-    const next = likeRows[PAGE_SIZE];
-    nextCursor = Buffer.from(`${next.indexedAt}|${next.uri}`).toString('base64');
-    likeRows.splice(PAGE_SIZE);
+    const next = likeRows[PAGE_SIZE].indexedAt;
+    nextCursor = Buffer.from(next).toString('base64');
+    likeRows.splice(PAGE_SIZE); // 100件に絞る
   }
 
   // 2. likerごとのlike数を集計
@@ -101,23 +86,14 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
 
   // 5. like順にポストを組み立て
   const feed: FeedViewPost[] = []
-  const usedPostUris = new Set<string>() // 同一ページ内での重複を防ぐ
-  
+  const usedUris = new Set<string>();
   for (const row of likeRows) {
-    const feedRow = feedMap.get(row.did)
+    const feedRow = feedMap.get(row.did);
     if (feedRow && feedRow.length > 0) {
-      // 未使用のポストを探す
-      let foundPost: FeedViewPost | null = null
-      for (let i = 0; i < feedRow.length; i++) {
-        if (!usedPostUris.has(feedRow[i].post.uri)) {
-          foundPost = feedRow.splice(i, 1)[0] // 見つけたポストを削除して取得
-          break
-        }
-      }
-      
-      if (foundPost) {
-        usedPostUris.add(foundPost.post.uri)
-        feed.push(foundPost)
+      const post = feedRow.find(p => !usedUris.has(p.post.uri));
+      if (post) {
+        feed.push(post);
+        usedUris.add(post.post.uri);
       }
     }
   }
