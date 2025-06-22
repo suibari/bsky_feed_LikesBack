@@ -30,13 +30,13 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
   // 1. いいねを取得（indexedAt降順）
   let likeQuery = ctx.db
     .selectFrom('like')
-    .select(['did', 'indexedAt', 'uri']) // uriを追加して一意性を確保
+    .select(['did', 'indexedAt', 'uri'])
     .where('likedDid', '=', requesterDid)
     .orderBy('indexedAt', 'desc')
     .orderBy('uri', 'desc') // 同じタイムスタンプの場合の順序を決定的にする
     .limit(PAGE_SIZE + 1)
 
-  // cursorがある場合の処理を改善
+  // cursorがある場合の処理
   if (params.cursor) {
     try {
       const decodedCursor = Buffer.from(params.cursor, 'base64').toString();
@@ -52,13 +52,12 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
       );
     } catch (err) {
       console.error('Invalid cursor:', err);
-      // カーソルが無効な場合は無視して最初から取得
     }
   }
   
   const likeRows = await likeQuery.execute();
 
-  // cursor生成を改善
+  // cursor生成
   let nextCursor: string | undefined = undefined;
   if (likeRows.length > PAGE_SIZE) {
     const next = likeRows[PAGE_SIZE];
@@ -66,25 +65,25 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
     likeRows.splice(PAGE_SIZE);
   }
 
-  // 2. ユニークなlikerを抽出し、必要なポスト数を計算
-  const likerPostNeeds = new Map<string, number>();
+  // 2. likerごとのlike数を集計
+  const likeCounts: Record<string, number> = {}
   for (const row of likeRows) {
-    likerPostNeeds.set(row.did, (likerPostNeeds.get(row.did) || 0) + 1);
+    likeCounts[row.did] = (likeCounts[row.did] || 0) + 1
   }
 
-  // 3. 各likerのポストを取得
+  // 3. まとめてポスト取得（Promise.all）
   const responses = await Promise.all(
-    Array.from(likerPostNeeds.entries()).map(([liker, neededCount]) =>
+    Object.entries(likeCounts).map(([liker, count]) =>
       limit(() => 
         agent.getAuthorFeed({
           actor: liker,
-          limit: Math.min(neededCount, 100), // 必要な分だけ取得
-          filter: "posts_and_author_threads",
+          limit: 100,
+          filter: "posts_and_author_threads", // リプライ除外かつスレッド先頭ポスト含む
         }).then(res => ({
           liker,
           feed: res.data.feed
             .filter(item => !item.reason) // リポスト除外
-            .slice(0, neededCount) // 必要な分だけ
+            .slice(0, count)
         }))
         .catch(err => {
           console.error(`Failed to fetch feed for liker ${liker}:`, err)
@@ -94,44 +93,37 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
     )
   )
 
-  // 4. likerごとのポストキューを作成
-  const postQueues = new Map<string, FeedViewPost[]>();
+  // 4. Mapで feed を保持（各likerのポストリスト）
+  const feedMap = new Map<string, FeedViewPost[]>()
   for (const { liker, feed } of responses) {
-    postQueues.set(liker, feed);
+    feedMap.set(liker, feed)
   }
 
-  // 5. 重複チェック用のSet
-  const usedPostUris = new Set<string>();
-  const feed: FeedViewPost[] = [];
-
-  // 6. like順にポストを組み立て（重複チェック付き）
+  // 5. like順にポストを組み立て
+  const feed: FeedViewPost[] = []
+  const usedPostUris = new Set<string>() // 同一ページ内での重複を防ぐ
+  
   for (const row of likeRows) {
-    const queue = postQueues.get(row.did);
-    if (!queue || queue.length === 0) {
-      continue;
-    }
-
-    // キューから未使用のポストを探す
-    let postIndex = 0;
-    let foundPost: FeedViewPost | null = null;
-    
-    while (postIndex < queue.length) {
-      const candidatePost = queue[postIndex];
-      if (!usedPostUris.has(candidatePost.post.uri)) {
-        foundPost = candidatePost;
-        queue.splice(postIndex, 1); // キューから削除
-        break;
+    const feedRow = feedMap.get(row.did)
+    if (feedRow && feedRow.length > 0) {
+      // 未使用のポストを探す
+      let foundPost: FeedViewPost | null = null
+      for (let i = 0; i < feedRow.length; i++) {
+        if (!usedPostUris.has(feedRow[i].post.uri)) {
+          foundPost = feedRow.splice(i, 1)[0] // 見つけたポストを削除して取得
+          break
+        }
       }
-      postIndex++;
-    }
-
-    if (foundPost) {
-      usedPostUris.add(foundPost.post.uri);
-      feed.push(foundPost);
+      
+      if (foundPost) {
+        usedPostUris.add(foundPost.post.uri)
+        feed.push(foundPost)
+      }
     }
   }
 
-  console.log(`[${requesterDid}] liked by: ${likerPostNeeds.size}, total posts: ${feed.length}, cursor: ${nextCursor}`);
+  // 返却
+  console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}, cursor: ${nextCursor}`);
   return {
     cursor: nextCursor,
     feed: feed.map((item) => ({
