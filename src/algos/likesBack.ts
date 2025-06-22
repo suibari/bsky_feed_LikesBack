@@ -1,18 +1,22 @@
 import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton.js'
 import { AppContext } from '../config.js'
-import { FeedViewPost } from '@atproto/api/dist/client/types/app/bsky/feed/defs';
-import pLimit from 'p-limit';
-import { agent } from '../login.js';
+import { FeedViewPost } from '@atproto/api/dist/client/types/app/bsky/feed/defs'
+import pLimit from 'p-limit'
+import { agent } from '../login.js'
 
 export const shortname = 'likesBack'
 
+type CursorData = {
+  lastIndexedAt: string
+  usedCounts: Record<string, number>
+}
+
 export const handler = async (ctx: AppContext, params: QueryParams, requesterDid: string) => {
-  const PAGE_SIZE = Math.min(params.limit ?? 100, 100);
-  const limit = pLimit(10); // 同時fetch制限
+  const PAGE_SIZE = Math.min(params.limit ?? 100, 100)
+  const limit = pLimit(10)
+  const now = new Date()
 
-  const now = new Date();
-
-  // Subscriber登録
+  // subscriber 登録
   const result = await ctx.db
     .insertInto('subscriber')
     .values({
@@ -20,90 +24,119 @@ export const handler = async (ctx: AppContext, params: QueryParams, requesterDid
       indexedAt: now.toISOString(),
     })
     .onConflict((oc) => oc.doNothing())
-    .returning(['did']) // ← 挿入に成功したら返ってくる
+    .returning(['did'])
     .execute()
 
   if (result.length > 0) {
-    console.log(`[${requesterDid}] subscriber registered.`);
+    console.log(`[${requesterDid}] subscriber registered.`)
   }
 
-  // 1. 24時間以内のlikeを取得（indexedAt昇順）
+  // --- カーソル解釈 ---
+  let cursorData: CursorData | undefined
+  if (params.cursor) {
+    try {
+      const decoded = Buffer.from(params.cursor, 'base64').toString()
+      cursorData = JSON.parse(decoded)
+    } catch {
+      console.warn(`Invalid cursor: ${params.cursor}`)
+    }
+  }
+
+  // --- like取得 ---
   let likeQuery = ctx.db
     .selectFrom('like')
     .select(['did', 'indexedAt'])
     .where('likedDid', '=', requesterDid)
     .orderBy('indexedAt', 'desc')
-    .limit(PAGE_SIZE + 1) // 1件多く取得して、次があるか確認
+    .limit(PAGE_SIZE + 1)
 
-  // cursorがある場合、参照位置を指定
-  if (params.cursor) {
-    const decodedCursor = Buffer.from(params.cursor, 'base64').toString();
-    likeQuery = likeQuery.where('indexedAt', '<', decodedCursor);
+  if (cursorData?.lastIndexedAt) {
+    likeQuery = likeQuery.where('indexedAt', '<', cursorData.lastIndexedAt)
   }
-  const likeRows = await likeQuery.execute();
 
-  // cursor生成
-  let nextCursor: string | undefined = undefined;
+  const likeRows = await likeQuery.execute()
+
+  // --- cursor生成 ---
+  let nextCursor: string | undefined = undefined
+  let nextUsedCounts: Record<string, number> = { ...(cursorData?.usedCounts || {}) }
+
   if (likeRows.length > PAGE_SIZE) {
-    const next = likeRows[PAGE_SIZE].indexedAt;
-    nextCursor = Buffer.from(next).toString('base64');
-    likeRows.splice(PAGE_SIZE); // 100件に絞る
+    const nextIndexedAt = likeRows[PAGE_SIZE].indexedAt
+    likeRows.splice(PAGE_SIZE) // 上限分に絞る
+    nextCursor = Buffer.from(JSON.stringify({
+      lastIndexedAt: nextIndexedAt,
+      usedCounts: nextUsedCounts, // あとで上書き
+    })).toString('base64')
   }
 
-  // 2. likerごとのlike数を集計
+  // --- like数を集計 ---
   const likeCounts: Record<string, number> = {}
   for (const row of likeRows) {
     likeCounts[row.did] = (likeCounts[row.did] || 0) + 1
   }
 
-  // 3. まとめてポスト取得（Promise.all）
+  // --- ポスト取得（likerごとに取得 + slice） ---
   const responses = await Promise.all(
     Object.entries(likeCounts).map(([liker, count]) =>
-      limit(() => 
+      limit(() =>
         agent.getAuthorFeed({
           actor: liker,
           limit: 100,
-          filter: "posts_and_author_threads", // リプライ除外かつスレッド先頭ポスト含む
-        }).then(res => ({
-          liker,
-          feed: res.data.feed
-            .filter(item => !item.reason) // リポスト除外
-            .slice(0, count)
-        }))
-        .catch(err => {
-          console.error(`Failed to fetch feed for liker ${liker}:`, err)
-          return { liker, feed: [] }
+          filter: 'posts_and_author_threads',
         })
+          .then(res => {
+            const allPosts = res.data.feed.filter(p => !p.reason) // リポスト除外
+            const prevUsed = cursorData?.usedCounts?.[liker] || 0
+            const feed = allPosts.slice(prevUsed, prevUsed + count)
+            return { liker, feed }
+          })
+          .catch(err => {
+            console.error(`Failed to fetch feed for liker ${liker}:`, err)
+            return { liker, feed: [] }
+          })
       )
     )
   )
 
-  // 4. Mapで feed を保持（各likerのポストリスト）
+  // --- feedMap構築 ---
   const feedMap = new Map<string, FeedViewPost[]>()
   for (const { liker, feed } of responses) {
     feedMap.set(liker, feed)
   }
 
-  // 5. like順にポストを組み立て
+  // --- フィード構築 + usedCount更新 ---
   const feed: FeedViewPost[] = []
-  const usedUris = new Set<string>();
+  const usedUris = new Set<string>()
+
   for (const row of likeRows) {
-    const feedRow = feedMap.get(row.did);
+    const feedRow = feedMap.get(row.did)
     if (feedRow && feedRow.length > 0) {
-      const post = feedRow.find(p => !usedUris.has(p.post.uri));
+      const post = feedRow.find(p => !usedUris.has(p.post.uri))
       if (post) {
-        feed.push(post);
-        usedUris.add(post.post.uri);
+        feed.push(post)
+        usedUris.add(post.post.uri)
+        nextUsedCounts[row.did] = (nextUsedCounts[row.did] || 0) + 1
       }
     }
   }
 
-  // 返却
-  console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}, cursor: ${nextCursor}`);
+  // --- 次のカーソル再生成（使用数反映） ---
+  if (feed.length > 0 && likeRows.length === PAGE_SIZE) {
+    const lastIndexedAt = likeRows[likeRows.length - 1].indexedAt
+    nextCursor = Buffer.from(JSON.stringify({
+      lastIndexedAt,
+      usedCounts: nextUsedCounts,
+    })).toString('base64')
+  } else {
+    nextCursor = undefined // 最後のページ
+  }
+
+  console.log(`[${requesterDid}] liked by: ${Object.keys(likeCounts).length}, total posts: ${feed.length}, cursor: ${nextCursor}`)
+
   return {
     cursor: nextCursor,
     feed: feed.map((item) => ({
       post: item.post.uri,
     })),
-  };
+  }
 }
